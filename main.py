@@ -14,7 +14,12 @@ def main():
     
     # --- 1. 加载模型 ---
     print(f"Loading {MODEL_NAME}...")
-    hf_model = transformers.AutoModelForCausalLM.from_pretrained(MODEL_NAME).cuda()
+    
+    # 自动检测并优先使用 CUDA
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Using device: {device}")
+    
+    hf_model = transformers.AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(device)
     tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME)
     model = jlens.from_hf(hf_model, tokenizer)
     print("Model loaded successfully.")
