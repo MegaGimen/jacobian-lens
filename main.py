@@ -49,32 +49,66 @@ def main():
         lens.save(LENS_PATH)
         print(f"Lens trained and saved to {LENS_PATH}!")
 
-    # --- 3. 使用透镜进行预测 ---
+    # --- 3. 交互式查询透镜 ---
     prompt = "Fact: The currency used in the country shaped like a boot is"
-    print(f"\nApplying lens to prompt: '{prompt}'")
-    print("Target token position: -2 (at the word 'boot')")
+    print(f"\nPrompt: '{prompt}'")
     
-    layers = [
-        model.n_layers // 4,
-        model.n_layers // 2,
-        model.n_layers // 4 * 3,
-        model.n_layers - 2,
-    ]
+    input_ids = tokenizer(prompt, return_tensors="pt").input_ids[0]
+    print("\nTokens and their positions:")
+    for i, token_id in enumerate(input_ids):
+        print(f"  [{i}]: {repr(tokenizer.decode([token_id.item()]))}")
+        
+    print("\n" + "="*50)
+    print("Interactive J-Lens Mode Started!")
+    print("Format to enter: <position> <layer> (separated by space, e.g., '10 6')")
+    print(f"Available positions: 0 to {len(input_ids)-1} (or negative indexing like -1, -2)")
+    print(f"Available layers: 0 to {model.n_layers-1}")
+    print("Type 'q' or 'quit' to exit.")
+    print("="*50)
 
-    # J-lens
-    jlens_logits, model_logits, _ = lens.apply(model, prompt, layers=layers, positions=[-2])
-    
-    # Vanilla logit lens
-    logit_lens, _, _ = lens.apply(
-        model, prompt, layers=layers, positions=[-2], use_jacobian=False
-    )
-
-    print("\n--- 结果对比 ---")
-    for layer in layers:
-        print(f"L{layer:>3} logit-lens: {top5(logit_lens[layer][0], tokenizer)}")
-        print(f"L{layer:>3} J-lens:     {top5(jlens_logits[layer][0], tokenizer)}")
-    
-    print(f"model final out: {top5(model_logits[0], tokenizer)}")
+    while True:
+        try:
+            user_input = input("\nEnter <position> <layer>: ").strip()
+            if user_input.lower() in ['q', 'quit', 'exit']:
+                break
+            
+            if not user_input:
+                continue
+                
+            parts = user_input.split()
+            if len(parts) != 2:
+                print("Error: Please enter exactly two numbers separated by a space.")
+                continue
+                
+            pos = int(parts[0])
+            layer = int(parts[1])
+            
+            if not (-len(input_ids) <= pos < len(input_ids)):
+                print(f"Error: position must be between {-len(input_ids)} and {len(input_ids)-1}")
+                continue
+            if not (0 <= layer < model.n_layers):
+                print(f"Error: layer must be between 0 and {model.n_layers-1}")
+                continue
+                
+            # 执行透镜应用
+            jlens_logits, _, _ = lens.apply(
+                model, prompt, layers=[layer], positions=[pos]
+            )
+            
+            # 解析 token 字符串
+            actual_pos = pos if pos >= 0 else len(input_ids) + pos
+            token_str = tokenizer.decode([input_ids[actual_pos].item()])
+            predictions = top5(jlens_logits[layer][0], tokenizer)
+            
+            # 严格按照要求的格式输出
+            print(f"position={pos}, layer={layer}, token={repr(token_str)}: {predictions}")
+            
+        except ValueError:
+            print("Error: Invalid input. Please enter valid integers.")
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
