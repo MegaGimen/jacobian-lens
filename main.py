@@ -9,8 +9,8 @@ def top5(logits, tokenizer):
 
 def main():
     jlens.configure_logging()
-    MODEL_NAME = "gpt2"
-    LENS_PATH = "gpt2_jacobian_lens.pt"
+    MODEL_NAME = "Qwen/Qwen2.5-1.5B"
+    LENS_PATH = "qwen2.5_1.5b_jacobian_lens.pt"
     
     # --- 1. 加载模型 ---
     print(f"Loading {MODEL_NAME}...")
@@ -19,7 +19,10 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
     
-    hf_model = transformers.AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(device)
+    # 指定 torch_dtype="auto" 确保它以半精度（16-bit）加载，极大节省显存
+    hf_model = transformers.AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME, torch_dtype="auto"
+    ).to(device)
     tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME)
     model = jlens.from_hf(hf_model, tokenizer)
     print("Model loaded successfully.")
