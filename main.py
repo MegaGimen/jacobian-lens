@@ -61,29 +61,47 @@ def main():
     print("\n" + "="*50)
     print("Interactive J-Lens Mode Started!")
     print("Format to enter: <position> (e.g., '10', '-2')")
+    print("Or enter ANY TEXT to change the current prompt.")
     print(f"Available positions: 0 to {len(input_ids)-1} (or negative indexing like -1, -2)")
     print("Type 'q' or 'quit' to exit.")
     print("="*50)
 
     while True:
         try:
-            user_input = input("\nEnter <position>: ").strip()
+            user_input = input("\nEnter <position> or <new prompt>: ").strip()
             if user_input.lower() in ['q', 'quit', 'exit']:
                 break
             
             if not user_input:
                 continue
                 
-            pos = int(user_input)
+            # 判断输入是位置(数字)还是新句子(文本)
+            is_number = False
+            try:
+                pos = int(user_input)
+                is_number = True
+            except ValueError:
+                pass
+                
+            if not is_number:
+                # 认为输入的是新的 prompt
+                prompt = user_input
+                print(f"\n[Prompt Updated] => '{prompt}'")
+                input_ids = tokenizer(prompt, return_tensors="pt").input_ids[0]
+                print("Tokens and their positions:")
+                for i, token_id in enumerate(input_ids):
+                    print(f"  [{i}]: {repr(tokenizer.decode([token_id.item()]))}")
+                continue
             
+            # 以下为输入数字（position）的处理逻辑
             if not (-len(input_ids) <= pos < len(input_ids)):
                 print(f"Error: position must be between {-len(input_ids)} and {len(input_ids)-1}")
                 continue
                 
-            # J-lens 无法探测最后一层自身（因为这是基准层），所以我们只探测 0 到 n_layers-2
+            # 探测 0 到 n_layers-2 (由于之前报过错，我们确保绝对不触及最后一层)
             all_layers = list(range(model.n_layers - 1))
             
-            # 执行透镜应用，探测这一位置的所有层
+            # 执行透镜应用
             jlens_logits, _, _ = lens.apply(
                 model, prompt, layers=all_layers, positions=[pos]
             )
@@ -93,20 +111,18 @@ def main():
             token_str = tokenizer.decode([input_ids[actual_pos].item()])
             
             # 遍历每一层输出结果
+            print("\n--- 逐层透镜输出 ---")
             for layer in all_layers:
                 predictions = top5(jlens_logits[layer][0], tokenizer)
-                # 严格按照要求的格式输出
-                print(f"position={pos}, layer={layer}, token={repr(token_str)}: {predictions}")
-            
-        except ValueError as e:
-            if "invalid literal" in str(e).lower() or "base 10" in str(e).lower():
-                print("Error: Invalid input. Please enter a valid integer.")
-            else:
-                print(f"ValueError from J-lens: {e}")
+                print(f"position={pos}, layer={layer:>2}, token={repr(token_str)}: {predictions}")
+                
         except KeyboardInterrupt:
             break
         except Exception as e:
-            print(f"An error occurred: {e}")
+            # 彻底暴露所有底层报错细节，方便排查
+            import traceback
+            traceback.print_exc()
+            print(f"An unexpected error occurred: {e}")
 
 if __name__ == "__main__":
     main()
