@@ -293,7 +293,7 @@ def compute_slice(
     flat_ids = top_ids.ravel()
     flat_ranks = top_ranks.ravel()
     score_by_token: dict[int, float] = {}
-    for token_id, rank in zip(flat_ids, flat_ranks, strict=True):
+    for token_id, rank in zip(flat_ids, flat_ranks):
         score_by_token[int(token_id)] = score_by_token.get(int(token_id), 0.0) + 1.0 / (
             int(rank) + 1
         )

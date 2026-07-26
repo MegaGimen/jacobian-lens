@@ -30,6 +30,10 @@ import time
 from collections.abc import Sequence
 
 import torch
+try:
+    from tqdm.auto import tqdm
+except ImportError:
+    tqdm = lambda x, **kwargs: x
 
 from jlens.hooks import ActivationRecorder
 from jlens.lens import JacobianLens
@@ -190,7 +194,7 @@ def jacobian_for_prompt(
                 grad_outputs=cotangent,
                 retain_graph=(pass_idx < n_passes - 1),
             )
-            for layer, grad in zip(source_layers, grads, strict=True):
+            for layer, grad in zip(source_layers, grads):
                 # grad: [dim_batch, seq_len, d_model] on whatever device this
                 # layer lives on; mean over the valid positions -> dim_batch rows.
                 positions_on_device = valid_positions.to(grad.device, non_blocking=True)
@@ -327,7 +331,7 @@ def fit(
             )
 
     sqrt_d = math.sqrt(d_model)
-    for prompt_idx, prompt in enumerate(prompts):
+    for prompt_idx, prompt in tqdm(enumerate(prompts), total=len(prompts), desc="Fitting J-Lens"):
         if prompt_idx < next_idx:
             continue
         start_time = time.perf_counter()
