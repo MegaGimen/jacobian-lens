@@ -60,51 +60,46 @@ def main():
         
     print("\n" + "="*50)
     print("Interactive J-Lens Mode Started!")
-    print("Format to enter: <position> <layer> (separated by space, e.g., '10 6')")
+    print("Format to enter: <position> (e.g., '10', '-2')")
     print(f"Available positions: 0 to {len(input_ids)-1} (or negative indexing like -1, -2)")
-    print(f"Available layers: 0 to {model.n_layers-1}")
     print("Type 'q' or 'quit' to exit.")
     print("="*50)
 
     while True:
         try:
-            user_input = input("\nEnter <position> <layer>: ").strip()
+            user_input = input("\nEnter <position>: ").strip()
             if user_input.lower() in ['q', 'quit', 'exit']:
                 break
             
             if not user_input:
                 continue
                 
-            parts = user_input.split()
-            if len(parts) != 2:
-                print("Error: Please enter exactly two numbers separated by a space.")
-                continue
-                
-            pos = int(parts[0])
-            layer = int(parts[1])
+            pos = int(user_input)
             
             if not (-len(input_ids) <= pos < len(input_ids)):
                 print(f"Error: position must be between {-len(input_ids)} and {len(input_ids)-1}")
                 continue
-            if not (0 <= layer < model.n_layers):
-                print(f"Error: layer must be between 0 and {model.n_layers-1}")
-                continue
                 
-            # 执行透镜应用
+            # 一次性提取模型的所有层
+            all_layers = list(range(model.n_layers))
+            
+            # 执行透镜应用，探测这一位置的所有层
             jlens_logits, _, _ = lens.apply(
-                model, prompt, layers=[layer], positions=[pos]
+                model, prompt, layers=all_layers, positions=[pos]
             )
             
             # 解析 token 字符串
             actual_pos = pos if pos >= 0 else len(input_ids) + pos
             token_str = tokenizer.decode([input_ids[actual_pos].item()])
-            predictions = top5(jlens_logits[layer][0], tokenizer)
             
-            # 严格按照要求的格式输出
-            print(f"position={pos}, layer={layer}, token={repr(token_str)}: {predictions}")
+            # 遍历每一层输出结果
+            for layer in all_layers:
+                predictions = top5(jlens_logits[layer][0], tokenizer)
+                # 严格按照要求的格式输出
+                print(f"position={pos}, layer={layer}, token={repr(token_str)}: {predictions}")
             
         except ValueError:
-            print("Error: Invalid input. Please enter valid integers.")
+            print("Error: Invalid input. Please enter a valid integer.")
         except KeyboardInterrupt:
             break
         except Exception as e:
