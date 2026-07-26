@@ -80,8 +80,8 @@ def main():
                 print(f"Error: position must be between {-len(input_ids)} and {len(input_ids)-1}")
                 continue
                 
-            # 一次性提取模型的所有层
-            all_layers = list(range(model.n_layers))
+            # J-lens 无法探测最后一层自身（因为这是基准层），所以我们只探测 0 到 n_layers-2
+            all_layers = list(range(model.n_layers - 1))
             
             # 执行透镜应用，探测这一位置的所有层
             jlens_logits, _, _ = lens.apply(
@@ -98,8 +98,11 @@ def main():
                 # 严格按照要求的格式输出
                 print(f"position={pos}, layer={layer}, token={repr(token_str)}: {predictions}")
             
-        except ValueError:
-            print("Error: Invalid input. Please enter a valid integer.")
+        except ValueError as e:
+            if "invalid literal" in str(e).lower() or "base 10" in str(e).lower():
+                print("Error: Invalid input. Please enter a valid integer.")
+            else:
+                print(f"ValueError from J-lens: {e}")
         except KeyboardInterrupt:
             break
         except Exception as e:
