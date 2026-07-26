@@ -49,32 +49,30 @@ def main():
         lens.save(LENS_PATH)
         print(f"Lens trained and saved to {LENS_PATH}!")
 
-    # --- 3. 使用透镜进行预测 ---
-    prompt = "Fact: The currency used in the country shaped like a boot is"
-    print(f"\nApplying lens to prompt: '{prompt}'")
-    print("Target token position: -2 (at the word 'boot')")
+    # --- 3. 使用最优的 J-lens 观测句子中每个位置的内部状态 ---
+    # 使用一个简单易懂的 prompt，看它如何一步步推导出 Paris
+    prompt = "The capital of France is"
+    print(f"\nApplying J-lens to prompt: '{prompt}'")
     
-    layers = [
-        model.n_layers // 4,
-        model.n_layers // 2,
-        model.n_layers // 4 * 3,
-        model.n_layers - 2,
-    ]
+    # 获取所有的 token 以便逐个分析
+    input_ids = tokenizer(prompt, return_tensors="pt").input_ids[0]
+    all_positions = list(range(len(input_ids)))
+    
+    # 选取一个中间偏后的层（对于12层的GPT-2，这里是 L9），往往是 J-lens 破译意图最清晰的一层
+    target_layer = model.n_layers // 4 * 3
+    print(f"Observing internal state at Layer {target_layer} using J-lens:")
 
-    # J-lens
-    jlens_logits, model_logits, _ = lens.apply(model, prompt, layers=layers, positions=[-2])
-    
-    # Vanilla logit lens
-    logit_lens, _, _ = lens.apply(
-        model, prompt, layers=layers, positions=[-2], use_jacobian=False
+    # 一次性对整句话的所有位置应用雅可比透镜
+    jlens_logits, model_logits, _ = lens.apply(
+        model, prompt, layers=[target_layer], positions=all_positions
     )
 
-    print("\n--- 结果对比 ---")
-    for layer in layers:
-        print(f"L{layer:>3} logit-lens: {top5(logit_lens[layer][0], tokenizer)}")
-        print(f"L{layer:>3} J-lens:     {top5(jlens_logits[layer][0], tokenizer)}")
-    
-    print(f"model final out: {top5(model_logits[0], tokenizer)}")
+    print("\n--- 逐词透镜输出 ---")
+    for i, pos in enumerate(all_positions):
+        token_str = tokenizer.decode([input_ids[pos].item()])
+        predictions = top5(jlens_logits[target_layer][i], tokenizer)
+        # 严格按照要求的格式输出：position x: token=y:[...]
+        print(f"position {pos}: token={repr(token_str)}: {predictions}")
 
 if __name__ == "__main__":
     main()
