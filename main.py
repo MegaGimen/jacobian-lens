@@ -4,26 +4,28 @@ import transformers
 import jlens
 from jlens.examples import load_wikitext_prompts
 
+from modelscope import AutoModelForCausalLM, AutoTokenizer
+
 def top5(logits, tokenizer):
     return [tokenizer.decode([t]) for t in logits.topk(5).indices]
 
 def main():
     jlens.configure_logging()
-    MODEL_NAME = "Qwen/Qwen2.5-1.5B"
+    MODEL_NAME = "qwen/Qwen2.5-1.5B"
     LENS_PATH = "qwen2.5_1.5b_jacobian_lens.pt"
     
     # --- 1. 加载模型 ---
-    print(f"Loading {MODEL_NAME}...")
+    print(f"Loading {MODEL_NAME} from ModelScope...")
     
     # 自动检测并优先使用 CUDA
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
     
-    # 指定 torch_dtype="auto" 确保它以半精度（16-bit）加载，极大节省显存
-    hf_model = transformers.AutoModelForCausalLM.from_pretrained(
+    # 直接使用 ModelScope 的 API 加载，国内全自动极速下载
+    hf_model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME, torch_dtype="auto"
     ).to(device)
-    tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = jlens.from_hf(hf_model, tokenizer)
     print("Model loaded successfully.")
 
